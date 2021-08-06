@@ -27,9 +27,10 @@ class YOLOv5(object):
                  classes=None,  # filter by class: --class 0, or --class 0 2 3
                  agnostic_nms=False,  # class-agnostic NMS
                  augment=False,  # augmented inference
-                 half=True,  # use FP16 half-precision inference
+                 half=False,  # use FP16 half-precision inference
                  visualize=False,  # visualize features
                  device='',  # cuda device, i.e. 0 or 0,1,2,3 or cpu
+                 fix_inputs=True,
                  ):
         self.conf_thres = conf_thres
         self.iou_thres = iou_thres
@@ -38,6 +39,7 @@ class YOLOv5(object):
         self.visualize = visualize
         self.augment = augment
         self.max_det = max_det
+        self.fix_inputs = fix_inputs
         # Initialize
         self.half = half
         self.device = select_device(device)
@@ -66,7 +68,10 @@ class YOLOv5(object):
 
     def preprocess(self, image):
         # Padded resize
-        input_image = letterbox(image, self.imgsz, stride=self.stride)[0]
+        if self.fix_inputs:
+            input_image = cv2.resize(image, (self.imgsz, self.imgsz), interpolation=cv2.INTER_LINEAR)
+        else:
+            input_image = letterbox(image, self.imgsz, stride=self.stride)[0]
         # image_utils.cv_show_image("input_image", input_image)
         # Convert
         input_image = input_image.transpose(2, 0, 1)  # HWC->CHW
@@ -83,6 +88,7 @@ class YOLOv5(object):
         """
         with torch.no_grad():
             input_image = self.preprocess(rgb_image)
+            # torch.Size([1, 25200, 85])
             pred = self.model(input_image, augment=self.augment, visualize=self.visualize)[0]
             dets = self.postprocess(input_image, rgb_image.shape, pred)
         return dets
@@ -112,7 +118,9 @@ class YOLOv5(object):
         boxes = dets[:, 0:4]
         conf = dets[:, 4:5]
         cls = dets[:, 5]
-        labels = [self.names[int(c)] for c in cls]
+        labels = [int(c) for c in cls]
+        if self.names:
+            labels = [self.names[int(c)] for c in cls]
         image_utils.draw_image_detection_bboxes(image, boxes, conf, labels)
         # for *box, conf, cls in reversed(dets):
         #     c = int(cls)  # integer class
@@ -123,9 +131,9 @@ class YOLOv5(object):
 
 
 def parse_opt():
-    weights = 'scripts/pretrained/yolov5s.pt'
-    # weights = '/home/dm/data3/FaceDetector/YOLO/yolov5/runs/train/exp2/weights/best.pt'
-    image_dir = 'data/images'
+    weights = 'pretrained/yolov5s.pt'
+    # weights = '/home/dm/data3/FaceDetector/YOLO/yolov5/runs/train/exp/weights/last.pt'
+    image_dir = '../data/images'
     parser = argparse.ArgumentParser()
     parser.add_argument('--weights', nargs='+', type=str, default=weights, help='model.pt')
     parser.add_argument('--image_dir', type=str, default=image_dir, help='file/dir/URL/glob, 0 for webcam')
@@ -139,6 +147,7 @@ def parse_opt():
     parser.add_argument('--augment', action='store_true', help='augmented inference')
     opt = parser.parse_args()
     return opt
+
 
 if __name__ == "__main__":
     opt = parse_opt()
