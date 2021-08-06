@@ -89,19 +89,33 @@ def exif_transpose(image):
 
 
 def create_dataloader(path, imgsz, batch_size, stride, single_cls=False, hyp=None, augment=False, cache=False, pad=0.0,
-                      rect=False, rank=-1, workers=8, image_weights=False, quad=False, prefix=''):
+                      rect=False, rank=-1, workers=8, image_weights=False, quad=False, prefix='',data_dict={}):
     # Make sure only the first process in DDP process the dataset first, and the following others can use the cache
     with torch_distributed_zero_first(rank):
-        dataset = LoadImagesAndLabels(path, imgsz, batch_size,
-                                      augment=augment,  # augment images
-                                      hyp=hyp,  # augmentation hyperparameters
-                                      rect=rect,  # rectangular training
-                                      cache_images=cache,
-                                      single_cls=single_cls,
-                                      stride=int(stride),
-                                      pad=pad,
-                                      image_weights=image_weights,
-                                      prefix=prefix)
+        if "data_type" in data_dict and data_dict["data_type"] == "voc":
+            from utils import voc_datasets
+            dataset = voc_datasets.LoadVOCImagesAndLabels(path, imgsz, batch_size,
+                                                          augment=augment,  # augment images
+                                                          hyp=hyp,  # augmentation hyperparameters
+                                                          rect=rect,  # rectangular training
+                                                          cache_images=cache,
+                                                          single_cls=single_cls,
+                                                          stride=int(stride),
+                                                          pad=pad,
+                                                          image_weights=image_weights,
+                                                          prefix=prefix,
+                                                          names=data_dict["names"])
+        else:
+            dataset = LoadImagesAndLabels(path, imgsz, batch_size,
+                                          augment=augment,  # augment images
+                                          hyp=hyp,  # augmentation hyperparameters
+                                          rect=rect,  # rectangular training
+                                          cache_images=cache,
+                                          single_cls=single_cls,
+                                          stride=int(stride),
+                                          pad=pad,
+                                          image_weights=image_weights,
+                                          prefix=prefix)
 
     batch_size = min(batch_size, len(dataset))
     nw = min([os.cpu_count(), batch_size if batch_size > 1 else 0, workers])  # number of workers
