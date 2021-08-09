@@ -74,22 +74,27 @@ class WriterTXT(object):
     """ write data in txt files"""
 
     def __init__(self, filename, mode='w'):
-        self.f = open(filename, mode=mode)
+        self.f = None
+        if filename:
+            self.f = open(filename, mode=mode)
 
     def write_line_str(self, line_str, endline="\n"):
-        line_str = line_str + endline
-        self.f.write(line_str)
-        self.f.flush()
+        if self.f:
+            line_str = line_str + endline
+            self.f.write(line_str)
+            self.f.flush()
 
     def write_line_list(self, line_list, endline="\n"):
-        for line_list in line_list:
-            # 将list转为string
-            line_str = " ".join('%s' % id for id in line_list)
-            self.write_line_str(line_str, endline=endline)
-        self.f.flush()
+        if self.f:
+            for line_list in line_list:
+                # 将list转为string
+                line_str = " ".join('%s' % id for id in line_list)
+                self.write_line_str(line_str, endline=endline)
+            self.f.flush()
 
     def close(self):
-        self.f.close()
+        if self.f:
+            self.f.close()
 
 
 def read_json_data(json_path):
@@ -708,7 +713,7 @@ def get_files(file_dir, postfix=None):
         for file in filePath_list:
             basename = os.path.basename(file)  # 获得路径下的文件名
             postfix_name = basename.split('.')[-1]
-            if postfix_name in postfix:
+            if postfix_name.lower() in postfix:
                 file_list.append(file)
     file_list.sort()
     return file_list

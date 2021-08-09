@@ -15,6 +15,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import requests
 import matplotlib
+import numbers
 import base64
 import PIL.Image as Image
 from PIL import ImageDraw, ImageFont
@@ -607,6 +608,39 @@ def resize_image(image, resize_height=None, resize_width=None):
     return image
 
 
+def resize_image_padding(image, input_size, color=(0, 0, 0)):
+    """
+    等比例图像resize,保持原始图像内容比，避免失真,短边会0填充
+    :param size:
+    """
+    height, width = image.shape[:2]
+    scale = min([input_size[0] / width, input_size[1] / height])
+    new_size = [int(width * scale), int(height * scale)]
+    pad_w = input_size[0] - new_size[0]
+    pad_h = input_size[1] - new_size[1]
+    top, bottom = pad_h // 2, pad_h - (pad_h // 2)
+    left, right = pad_w // 2, pad_w - (pad_w // 2)
+    image = cv2.resize(image, (new_size[0], new_size[1]))
+    image = cv2.copyMakeBorder(image, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)  # add border
+    return image
+
+
+def image_boxes_padding_inverse(image_shape, input_size, boxes):
+    """
+    resize_image_padding的逆过程
+    """
+    height, width = image_shape[:2]
+    scale = min([input_size[0] / width, input_size[1] / height])
+    new_size = [int(width * scale), int(height * scale)]
+    pad_w = input_size[0] - new_size[0]
+    pad_h = input_size[1] - new_size[1]
+    top, bottom = pad_h // 2, pad_h - (pad_h // 2)
+    left, right = pad_w // 2, pad_w - (pad_w // 2)
+    boxes = boxes - [left, top, left, top]
+    boxes = boxes / scale
+    return boxes
+
+
 def resize_image_bboxes(image, resize_height=None, resize_width=None, bboxes=None):
     """
     :param image:
@@ -837,7 +871,7 @@ def show_image_rects(win_name, image, rect_list, type="rgb", color=(0, 0, 255), 
     :param rect_list:[[ x, y, w, h],[ x, y, w, h]]
     :return:
     '''
-    image = draw_image_rects(image, rect_list, color)
+    image = draw_image_rects(image.copy(), rect_list, color)
     cv_show_image(win_name, image, type, waitKey=waitKey)
     return image
 
@@ -875,10 +909,10 @@ def draw_image_bboxes_text(rgb_img, boxes, boxes_name, color=None, drawType="cus
             cls_id = class_set.index(name)
             set_color = get_color(cls_id)
         box = [int(b) for b in box]
-        # cv2.rectangle(bgr_image, (box[0], box[1]), (box[2], box[3]), (0, 255, 0), 2, 8, 0)
-        # cv2.putText(bgr_image, name, (box[0], box[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), thickness=2)
-        # cv2.rectangle(bgr_image, (box[0], box[1]), (box[2], box[3]), color, 2, 8, 0)
-        # cv2.putText(bgr_image, str(name), (box[0], box[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, thickness=2)
+        # cv2.rectangle(bgr_image, (crop_type[0], crop_type[1]), (crop_type[2], crop_type[3]), (0, 255, 0), 2, 8, 0)
+        # cv2.putText(bgr_image, name, (crop_type[0], crop_type[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), thickness=2)
+        # cv2.rectangle(bgr_image, (crop_type[0], crop_type[1]), (crop_type[2], crop_type[3]), color, 2, 8, 0)
+        # cv2.putText(bgr_image, str(name), (crop_type[0], crop_type[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, thickness=2)
         custom_bbox_line(rgb_image, box, set_color, name, drawType, top)
     # cv2.imshow(title, bgr_image)
     # cv2.waitKey(0)
@@ -969,10 +1003,10 @@ def draw_image_detection_bboxes(rgb_image, bboxes, probs, labels, boxes_name=Non
             cls_id = class_set.index(l)
             set_color = get_color(cls_id)
         box = [int(b) for b in box]
-        # cv2.rectangle(bgr_image, (box[0], box[1]), (box[2], box[3]), (0, 255, 0), 2, 8, 0)
-        # cv2.putText(bgr_image, name, (box[0], box[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), thickness=2)
-        # cv2.rectangle(bgr_image, (box[0], box[1]), (box[2], box[3]), color, 2, 8, 0)
-        # cv2.putText(bgr_image, str(name), (box[0], box[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, thickness=2)
+        # cv2.rectangle(bgr_image, (crop_type[0], crop_type[1]), (crop_type[2], crop_type[3]), (0, 255, 0), 2, 8, 0)
+        # cv2.putText(bgr_image, name, (crop_type[0], crop_type[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), thickness=2)
+        # cv2.rectangle(bgr_image, (crop_type[0], crop_type[1]), (crop_type[2], crop_type[3]), color, 2, 8, 0)
+        # cv2.putText(bgr_image, str(name), (crop_type[0], crop_type[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, thickness=2)
         custom_bbox_line(rgb_image, box, set_color, name, drawType="custom")
     # cv2.imshow(title, bgr_image)
     # cv2.waitKey(0)
@@ -1070,7 +1104,7 @@ def show_boxList(win_name, boxList, rgb_image, waitKey=0):
         xmax = item["xbr"]
         ymin = item["ytl"]
         ymax = item["ybr"]
-        # box=[xbr,ybr,xtl,ytl]
+        # crop_type=[xbr,ybr,xtl,ytl]
         box = [xmin, ymin, xmax, ymax]
         box = [int(float(b)) for b in box]
         cv2.rectangle(bgr_image, (box[0], box[1]), (box[2], box[3]), (0, 255, 0), 2, 8, 0)
@@ -1139,7 +1173,7 @@ def draw_points_text(img, points, texts=None, color=(255, 0, 0), thickness=1, dr
         texts = [""] * len(points)
     for point, text in zip(points, texts):
         point = (int(point[0]), int(point[1]))
-        cv2.circle(img, point, thickness, color, -1)
+        cv2.circle(img, point, thickness * 2, color, -1)
         draw_text(img, point, text, bg_color=color, thickness=thickness, drawType=drawType)
     return img
 
@@ -1280,7 +1314,7 @@ def draw_image_points_lines(image,
     if texts is None:
         texts = list(range(len(points)))
     draw_image_lines(image, points, pointline, color=line_color, thickness=thickness)
-    thickness_ = max(int(thickness / 2), 1)
+    thickness_ = max(int(thickness * 1), 1)
     image = draw_points_text(image, points,
                              texts=texts,
                              color=circle_color,
@@ -1568,12 +1602,20 @@ def filtering_scores(bboxes_list, scores_list, labels_list, score_threshold=0.0)
     return dest_bboxes_list, dest_scores_list, dest_labels_list
 
 
-def image_to_base64(rgb_image):
-    bgr_image = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
-    image = cv2.imencode('.jpg', bgr_image)[1]
-    # image_base64 = str(base64.b64encode(image))[2:-1]
-    image_base64 = base64.b64encode(image)
-    image_base64 = str(image_base64, encoding='utf-8')
+def file2base64(file):
+    image_base64 = base64.b64encode(open(file, 'rb').read()).decode()
+    return image_base64
+
+
+def image_to_base64(bgr_image):
+    from io import BytesIO
+    # image = cv2.imencode('.jpeg', bgr_image)[1]
+    # image_base64 = base64.b64encode(image).decode()
+    # image_base64 = str(base64.b64encode(image), encoding='utf-8')
+    image = Image.fromarray(cv2.cvtColor(bgr_image, cv2.COLOR_BGR2RGB))
+    buff = BytesIO()
+    image.save(buff, format="JPEG")
+    image_base64 = base64.b64encode(buff.getvalue()).decode("utf-8")
     return image_base64
 
 
@@ -1745,8 +1787,8 @@ def center_crop(image, crop_size=[112, 112]):
     h, w = image.shape[:2]
     y = int(round((h - crop_size[0]) / 2.))
     x = int(round((w - crop_size[1]) / 2.))
-    y = np.where(y > 0, y, 0)
-    x = np.where(x > 0, x, 0)
+    y = max(y, 0)
+    x = max(x, 0)
     return image[y:y + crop_size[0], x:x + crop_size[1]]
 
 
@@ -1893,7 +1935,7 @@ def points2bbox(keypoints):
     return joints_bbox
 
 
-def draw_yaws_pitchs_rolls_axis_in_image(bgr_image,
+def draw_yaws_pitchs_rolls_axis_in_image(image,
                                          yaws,
                                          pitchs,
                                          rolls,
@@ -1901,7 +1943,7 @@ def draw_yaws_pitchs_rolls_axis_in_image(bgr_image,
                                          size=75):
     """
     绘制yaw, pitch, roll坐标轴
-    :param bgr_image:
+    :param image:
     :param yaws:
     :param pitchs:
     :param rolls:
@@ -1913,11 +1955,11 @@ def draw_yaws_pitchs_rolls_axis_in_image(bgr_image,
     assert len(pitchs) == len(rolls)
     for i in range(len(yaws)):
         center = None if centers is None else centers[i]
-        bgr_image = draw_yaw_pitch_roll_in_left_axis(bgr_image, yaws[i], pitchs[i], rolls[i], center, size=size)
-    return bgr_image
+        image = draw_yaw_pitch_roll_in_left_axis(image, yaws[i], pitchs[i], rolls[i], center, size=size)
+    return image
 
 
-def draw_yaw_pitch_roll_in_right_axis(bgr_image,
+def draw_yaw_pitch_roll_in_right_axis(image,
                                       yaw,
                                       pitch,
                                       roll,
@@ -1926,12 +1968,11 @@ def draw_yaw_pitch_roll_in_right_axis(bgr_image,
                                       size=75):
     """
     右手笛卡尔坐标：https://blog.csdn.net/a812073479/article/details/100103442
-    头部朝向是左手坐标系(正向：x->y,y->z,x->z)
     pitch是围绕X轴旋转，也叫做俯仰角，左右耳朵连线构成X轴，如低头，点头动作
     yaw是围绕Y轴旋转，也叫偏航角，嘴巴鼻子连线构成Y轴，如左右摇头动作
     roll是围绕Z轴旋转，也叫翻滚角，眼睛和后脑勺连线构成Z轴，如歪头动作
     XYZ分别用红绿蓝表示，如(-10,0,0)表示绕X轴的反方向旋转10度
-    :param bgr_image: BGR Image
+    :param image: BGR Image
     :param yaw:  绿色Y
     :param pitch: 红色X
     :param roll: 蓝色Z
@@ -1942,7 +1983,7 @@ def draw_yaw_pitch_roll_in_right_axis(bgr_image,
     """
     text = "(pitch,yaw,roll)=({:3.3f},{:3.3f},{:3.3f})".format(pitch, yaw, roll)
     if center is None:
-        h, w, c = bgr_image.shape
+        h, w, c = image.shape
         center = (w / 2, h / 2)
     cx, cy = center
     pitch = pitch * np.pi / 180
@@ -1951,32 +1992,32 @@ def draw_yaw_pitch_roll_in_right_axis(bgr_image,
     # X-Axis pointing to right. drawn in red
     x1 = cx - size * (cos(yaw) * cos(roll))
     y1 = cy - size * (cos(pitch) * sin(roll) + cos(roll) * sin(pitch) * sin(yaw))
-    yaw_red_x = (0, 0, 255)  # BGR
+    color_yaw_x = (0, 0, 255)  # BGR
     # Y-Axis | drawn in green
     #        v
     x2 = size * (-cos(yaw) * sin(roll)) + cx
     y2 = size * (cos(pitch) * cos(roll) - sin(pitch) * sin(yaw) * sin(roll)) + cy
-    pitch_red_y = (0, 255, 0)
+    color_pitch_y = (0, 255, 0)
     # Z-Axis (out of the screen) drawn in blue
     x3 = size * (sin(yaw)) + cx
     y3 = size * (-cos(yaw) * sin(pitch)) + cy
-    roll_red_z = (255, 0, 0)
-    cv2.arrowedLine(bgr_image, (int(cx), int(cy)), (int(x1), int(y1)), yaw_red_x, 2, tipLength=0.2)
-    cv2.arrowedLine(bgr_image, (int(cx), int(cy)), (int(x2), int(y2)), pitch_red_y, 2, tipLength=0.2)
-    cv2.arrowedLine(bgr_image, (int(cx), int(cy)), (int(x3), int(y3)), roll_red_z, 2, tipLength=0.2)
+    color_roll_z = (255, 0, 0)
+    cv2.arrowedLine(image, (int(cx), int(cy)), (int(x1), int(y1)), color_yaw_x, 2, tipLength=0.2)
+    cv2.arrowedLine(image, (int(cx), int(cy)), (int(x2), int(y2)), color_pitch_y, 2, tipLength=0.2)
+    cv2.arrowedLine(image, (int(cx), int(cy)), (int(x3), int(y3)), color_roll_z, 2, tipLength=0.2)
     if vis:
         fontFace = cv2.FONT_HERSHEY_SIMPLEX
-        bgr_image = cv2.putText(bgr_image, str(text),
-                                # (int(cx), int(cy) + 10),
-                                (10, 10),
-                                fontFace,
-                                fontScale=0.3,
-                                color=(255, 0, 0),
-                                thickness=1)
-    return bgr_image
+        image = cv2.putText(image, str(text),
+                            # (int(cx), int(cy) + 10),
+                            (10, 10),
+                            fontFace,
+                            fontScale=0.3,
+                            color=(255, 0, 0),
+                            thickness=1)
+    return image
 
 
-def draw_yaw_pitch_roll_in_left_axis(bgr_image,
+def draw_yaw_pitch_roll_in_left_axis(image,
                                      yaw,
                                      pitch,
                                      roll,
@@ -1988,7 +2029,7 @@ def draw_yaw_pitch_roll_in_left_axis(bgr_image,
     """
     text = "(pitch,yaw,roll)=({:3.3f},{:3.3f},{:3.3f})".format(pitch, yaw, roll)
     if center is None:
-        h, w, c = bgr_image.shape
+        h, w, c = image.shape
         center = (w / 2, h / 2)
     cx, cy = center
     pitch = pitch * np.pi / 180
@@ -1997,74 +2038,29 @@ def draw_yaw_pitch_roll_in_left_axis(bgr_image,
     # X-Axis pointing to right. drawn in red
     x1 = size * (cos(yaw) * cos(roll)) + cx
     y1 = size * (cos(pitch) * sin(roll) + cos(roll) * sin(pitch) * sin(yaw)) + cy
-    yaw_red_x = (0, 0, 255)  # BGR
+    color_yaw_x = (0, 0, 255)  # BGR
     # Y-Axis | drawn in green
     #        v
     x2 = size * (-cos(yaw) * sin(roll)) + cx
     y2 = size * (cos(pitch) * cos(roll) - sin(pitch) * sin(yaw) * sin(roll)) + cy
-    pitch_red_y = (0, 255, 0)
+    color_pitch_y = (0, 255, 0)
     # Z-Axis (out of the screen) drawn in blue
     x3 = size * (sin(yaw)) + cx
     y3 = size * (-cos(yaw) * sin(pitch)) + cy
-    roll_red_z = (255, 0, 0)
-    cv2.arrowedLine(bgr_image, (int(cx), int(cy)), (int(x1), int(y1)), yaw_red_x, 2, tipLength=0.2)
-    cv2.arrowedLine(bgr_image, (int(cx), int(cy)), (int(x2), int(y2)), pitch_red_y, 2, tipLength=0.2)
-    cv2.arrowedLine(bgr_image, (int(cx), int(cy)), (int(x3), int(y3)), roll_red_z, 2, tipLength=0.2)
+    color_roll_z = (255, 0, 0)
+    cv2.arrowedLine(image, (int(cx), int(cy)), (int(x1), int(y1)), color_yaw_x, 2, tipLength=0.2)
+    cv2.arrowedLine(image, (int(cx), int(cy)), (int(x2), int(y2)), color_pitch_y, 2, tipLength=0.2)
+    cv2.arrowedLine(image, (int(cx), int(cy)), (int(x3), int(y3)), color_roll_z, 2, tipLength=0.2)
     if vis:
         fontFace = cv2.FONT_HERSHEY_SIMPLEX
-        bgr_image = cv2.putText(bgr_image, str(text),
-                                # (int(cx), int(cy) + 10),
-                                (10, 10),
-                                fontFace,
-                                fontScale=0.3,
-                                color=(255, 0, 0),
-                                thickness=1)
-    return bgr_image
-
-
-def point_affine_transform(point, trans):
-    """
-    输入原坐标点，进行仿射变换，获得变换后的坐标
-    :param point: 输入坐标点 (x,y)
-    :param trans: 仿射变换矩阵shape=(2,3),通过OpenCV的estimateAffine2D或者estimateAffine2D获得
-    :return: 变换后的新坐标
-    """
-    new_point = np.array([point[0], point[1], 1.]).T
-    new_point = np.dot(trans, new_point)  # 矩阵相乘
-    return new_point[:2]
-
-
-def image_affine_transform(image, dsize, trans):
-    """
-    输入原始图像，进行仿射变换，获得变换后的图像
-    :param image: 输入图像
-    :param dsize: 输入目标图像大小
-    :param trans: 仿射变换矩阵shape=(2,3),通过OpenCV的estimateAffine2D或者estimateAffine2D获得
-    :return:
-    """
-    out_image = cv2.warpAffine(image, M=trans, dsize=tuple(dsize))
-    return out_image
-
-
-def get_affine_transform(kpts, kpts_ref, trans_type="estimate"):
-    """
-    估计最优的仿射变换矩阵
-    :param kps: 实际关键点
-    :param kpts_ref: 参考关键点
-    :param trans_type:变换类型
-    :return: 仿射变换矩阵
-    """
-    kpts = np.float32(kpts)
-    kpts_ref = np.float32(kpts_ref)
-    if trans_type == "estimate":
-        # estimateAffine2D()可以用来估计最优的仿射变换矩阵
-        trans, _ = cv2.estimateAffine2D(kpts, kpts_ref)
-    elif trans_type == "affine":
-        # 通过3点对应关系获仿射变换矩阵
-        trans = cv2.getAffineTransform(kpts[0:3], kpts_ref[0:3])
-    else:
-        raise Exception("Error:{}".format(trans_type))
-    return trans
+        image = cv2.putText(image, str(text),
+                            # (int(cx), int(cy) + 10),
+                            (10, 10),
+                            fontFace,
+                            fontScale=0.3,
+                            color=(255, 0, 0),
+                            thickness=1)
+    return image
 
 
 def fig2data(fig):
@@ -2188,6 +2184,40 @@ def get_image_block(image, grid=[3, 3], same=False):
     return image_block
 
 
+def image_list2gif(image_list, image_size=None, out_gif_path="test.gif", fps=2):
+    """
+    uri：合成后的gif动图的名字，可以随意更改。
+    mode：操作模式，I表示多图，不用更改。
+    fps：帧率，也就是画面每秒传输帧数，值越大，gif动图的播放速度越大。
+    Usge:
+        image_dir="path/to/image-directory"
+        image_list = file_processing.get_files_lists(image_dir)
+        image_list2gif(image_list, out_gif_path=out_gif_path, fps=fps)
+    :param image_list:图片列表
+    :param image_size:gif图片的大小
+    :param out_gif_path:
+    :param fps:
+    :return:
+    """
+
+    import imageio
+    # pip install imageio
+
+    if not image_size:
+        image_size = [None, None]
+    if isinstance(image_size, numbers.Number):
+        image_size = [image_size, image_size]
+    writer = imageio.get_writer(uri=out_gif_path, mode='I', fps=fps)
+    for image_path in image_list:
+        # image = imageio.imread(image_path)
+        rgb = cv2.imread(image_path)
+        image = cv2.cvtColor(rgb, cv2.COLOR_BGR2RGB)
+        image = resize_image(image, resize_height=image_size[1], resize_width=image_size[0])
+        writer.append_data(image)
+    writer.close()
+    print("save gif:{}".format(out_gif_path))
+
+
 def get_video_info(video_cap):
     width = int(video_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(video_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -2198,6 +2228,8 @@ def get_video_info(video_cap):
 
 
 def get_video_writer(save_path, width, height, fps):
+    if not os.path.exists(os.path.dirname(save_path)):
+        os.makedirs(os.path.dirname(save_path))
     fourcc = cv2.VideoWriter_fourcc(*'XVID')
     frameSize = (int(width), int(height))
     video_writer = cv2.VideoWriter(save_path, fourcc, fps, frameSize)
@@ -2256,6 +2288,7 @@ if __name__ == "__main__":
                  [201.14865, 204.18265, 468.605, 696.36163]]
     src_boxes = np.asarray(src_boxes)
     image = read_image(image_path)
+    image = resize_image_padding(image, 800, 800)
     image = show_image_boxes("Det", image, src_boxes, color=(255, 0, 0), waitKey=3)
 
     image1, boxes1 = resize_image_bboxes(image, resize_width=200, resize_height=None, bboxes=src_boxes)

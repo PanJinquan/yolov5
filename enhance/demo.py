@@ -54,24 +54,13 @@ class YOLOv5(object):
             self.model.half()  # to FP16
         self.imgsz = check_img_size(imgsz, s=self.stride)  # check image size
 
-    def postprocess(self, input_image, image_shape, pred):
-        # NMS
-        pred = non_max_suppression(pred, self.conf_thres, self.iou_thres, self.classes,
-                                   self.agnostic_nms, max_det=self.max_det)
-        # Process predictions
-        dets = pred[0]
-        if len(dets):
-            # Rescale boxes from img_size to im0 size
-            dets[:, :4] = scale_coords(input_image.shape[2:], dets[:, :4], image_shape).round()
-        dets = dets.cpu().numpy()
-        return dets
-
     def preprocess(self, image):
         # Padded resize
         if self.fix_inputs:
-            input_image = cv2.resize(image, (self.imgsz, self.imgsz), interpolation=cv2.INTER_LINEAR)
+            input_image = image_utils.resize_image_padding(image, (self.imgsz, self.imgsz), color=(114, 114, 114))
         else:
-            input_image = letterbox(image, self.imgsz, stride=self.stride)[0]
+            # input_image = letterbox(image, self.imgsz, stride=self.stride)[0]
+            input_image = letterbox(image, self.imgsz, stride=self.stride, auto=False, scaleFill=False)[0]
         # image_utils.cv_show_image("input_image", input_image)
         # Convert
         input_image = input_image.transpose(2, 0, 1)  # HWC->CHW
@@ -81,6 +70,19 @@ class YOLOv5(object):
         input_image /= 255.0  # 0 - 255 to 0.0 - 1.0
         input_image = input_image[None]  # expand for batch dim
         return input_image
+
+    def postprocess(self, input_image, image_shape, pred):
+        # NMS
+        pred = non_max_suppression(pred, self.conf_thres, self.iou_thres, self.classes,
+                                   self.agnostic_nms, max_det=self.max_det)
+        # Process predictions
+        dets = pred[0]
+        dets = dets.cpu().numpy()
+        if len(dets):
+            # Rescale boxes from img_size to im0 size
+            dets[:, :4] = scale_coords(input_image.shape[2:], dets[:, :4], image_shape).round()
+            # dets[:, :4] = image_utils.image_boxes_padding_inverse(image_shape, (self.imgsz, self.imgsz), dets[:, :4]).round()
+        return dets
 
     def inference(self, rgb_image):
         """
@@ -131,9 +133,10 @@ class YOLOv5(object):
 
 
 def parse_opt():
+    # weights = '../runs/train/exp/weights/best.pt'
     weights = 'pretrained/yolov5s.pt'
-    # weights = '/home/dm/data3/FaceDetector/YOLO/yolov5/runs/train/exp/weights/last.pt'
-    image_dir = '../data/images'
+    image_dir = '/home/dm/data3/FaceDetector/YOLO/yolov5/data/images'
+    # image_dir = 'data/test_image'
     parser = argparse.ArgumentParser()
     parser.add_argument('--weights', nargs='+', type=str, default=weights, help='model.pt')
     parser.add_argument('--image_dir', type=str, default=image_dir, help='file/dir/URL/glob, 0 for webcam')
