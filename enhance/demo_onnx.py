@@ -66,7 +66,8 @@ class YOLOv5ONNX(demo.YOLOv5):
 
 if __name__ == "__main__":
     opt = demo.parse_opt()
-    opt.weights = 'pretrained/yolov5s.onnx'
+    # opt.weights = 'pretrained/yolov5s.onnx'
+    opt.weights = 'pretrained/face_person.onnx'
     d = YOLOv5ONNX(weights=opt.weights,  # model.pt path(s)
                    imgsz=opt.imgsz,  # inference size (pixels)
                    conf_thres=opt.conf_thres,  # confidence threshold

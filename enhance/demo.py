@@ -133,8 +133,8 @@ class YOLOv5(object):
 
 
 def parse_opt():
-    # weights = '../runs/train/exp/weights/best.pt'
-    weights = 'pretrained/yolov5s.pt'
+    weights = 'pretrained/face_person.pt'
+    # weights = 'pretrained/yolov5s.pt'
     image_dir = '/home/dm/data3/FaceDetector/YOLO/yolov5/data/images'
     # image_dir = 'data/test_image'
     parser = argparse.ArgumentParser()
